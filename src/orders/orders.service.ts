@@ -2,7 +2,7 @@ import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { catchError, from, map, switchMap, throwError } from 'rxjs';
 
-import { PRODUCT_SERVICE } from '../config/services.js';
+import { NAST_SERVICE } from '../config/services.js';
 import { PrismaService } from '../prisma.service.js';
 
 import {
@@ -23,7 +23,7 @@ export class OrdersService {
 
   constructor(
     private readonly prisma: PrismaService,
-    @Inject(PRODUCT_SERVICE) private readonly client: ClientProxy
+    @Inject(NAST_SERVICE) private readonly client: ClientProxy
   ) { }
 
   create(createOrderDto: CreateOrderDto) {

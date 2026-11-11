@@ -1,15 +1,17 @@
-import { HttpStatus, Inject, Injectable } from '@nestjs/common';
+import { HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { catchError, from, map, switchMap, throwError } from 'rxjs';
 
 import { NAST_SERVICE } from '../config/services.js';
 import { PrismaService } from '../prisma.service.js';
 
+import { OrdersWithProducts } from './interfaces/orders-with-products.interface.js';
 import {
   ChangeOrderStatusDto,
   CreateOrderDto,
   OrderItemDto,
   OrderPaginationDto,
+  PaidOrderDto,
 } from './dto/index.js';
 
 interface ValidatedProduct {
@@ -20,6 +22,8 @@ interface ValidatedProduct {
 
 @Injectable()
 export class OrdersService {
+
+  private readonly logger = new Logger('order-service');
 
   constructor(
     private readonly prisma: PrismaService,
@@ -181,5 +185,38 @@ export class OrdersService {
       where: { id },
       data: { status }
     })
+  }
+
+  createPaymentSession(orderWithProducts: OrdersWithProducts) {
+    return this.client.send('create.payment.session', {
+      orderId: orderWithProducts.id,
+      currency: 'usd',
+      items: orderWithProducts.orderItem.map((item) => ({
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity
+      }))
+    })
+  }
+
+  handlePaymentSucceeded(paidOrderDto: PaidOrderDto) {
+    this.logger.log('Order Paid');
+    this.logger.log(paidOrderDto);
+    return this.prisma.order.update({
+      where: { id: paidOrderDto.orderId },
+      data: {
+        status: 'PAID',
+        paid: true,
+        paidAt: new Date(),
+        stripeChargeId: paidOrderDto.stripePaymentId,
+
+        //La relacion:
+        orderReceipts: {
+          create: {
+            receiptUrl: paidOrderDto.receiptUrl
+          }
+        }
+      }
+    });
   }
 }

@@ -1,8 +1,9 @@
 import { Controller, NotImplementedException, ParseUUIDPipe } from '@nestjs/common';
-import { MessagePattern, Payload } from '@nestjs/microservices';
+import { EventPattern, MessagePattern, Payload } from '@nestjs/microservices';
+import { forkJoin, of, switchMap } from 'rxjs';
 
 import { OrdersService } from './orders.service.js';
-import { ChangeOrderStatusDto, CreateOrderDto, OrderPaginationDto } from './dto/index.js';
+import { ChangeOrderStatusDto, CreateOrderDto, OrderPaginationDto, PaidOrderDto } from './dto/index.js';
 
 @Controller()
 export class OrdersController {
@@ -10,7 +11,14 @@ export class OrdersController {
 
   @MessagePattern('createOrder')
   create(@Payload() createOrderDto: CreateOrderDto) {
-    return this.ordersService.create(createOrderDto);
+    return this.ordersService.create(createOrderDto).pipe(
+      switchMap(order => {
+        return forkJoin({
+          order: of(order),
+          paymentSession: this.ordersService.createPaymentSession(order),
+        })
+      })
+    );
   }
 
   @MessagePattern('findAllOrders')
@@ -26,5 +34,10 @@ export class OrdersController {
   @MessagePattern('changeOrderStatus')
   changeOrderStatus(@Payload() changeOrderStatusDto: ChangeOrderStatusDto) {
     return this.ordersService.changeOrderStatus(changeOrderStatusDto)
+  }
+
+  @EventPattern('payment.succeeded')
+  handlePaymentSucceeded(@Payload() paidOrderDto: PaidOrderDto) {
+    return this.ordersService.handlePaymentSucceeded(paidOrderDto);
   }
 }

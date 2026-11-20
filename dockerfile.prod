@@ -1,0 +1,49 @@
+# Dependencias
+FROM node:24.22.1-alpine3.24 AS deps
+
+WORKDIR /usr/src/app
+
+COPY package*.json ./
+
+RUN npm install
+
+
+# Builder - Construye la aplicacion
+FROM node:24.22.1-alpine3.24 AS builder
+
+ARG ORDERS_DATABASE_URL
+ENV DATABASE_URL=$ORDERS_DATABASE_URL
+
+WORKDIR /usr/src/app
+
+#Copy node modules  from deps 
+COPY --from=deps /usr/src/app/node_modules ./node_modules
+
+#copy the source code of the application
+COPY . .
+
+# Usually you run the TEST before build the app
+# generate no conecta a la DB: la URL es placeholder, la real llega en runtime
+RUN npx prisma migrate deploy
+RUN npx prisma generate
+RUN npm run build
+RUN npm ci --omit=dev && npm cache clean --force
+
+
+# Crear la imagen final de Docker
+FROM node:24.22.1-alpine3.24 AS prod
+
+WORKDIR /usr/src/app 
+
+COPY --from=builder /usr/src/app/node_modules ./node_modules
+
+# Copy distribution folder
+COPY --from=builder /usr/src/app/dist ./dist
+
+ENV NODE_ENV=production
+
+USER node
+
+EXPOSE 3000
+
+CMD ["node", "dist/main.js"]

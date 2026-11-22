@@ -14,6 +14,8 @@ FROM node:24.22.1-alpine3.24 AS builder
 ARG ORDERS_DATABASE_URL
 ENV DATABASE_URL=$ORDERS_DATABASE_URL
 
+RUN echo "database_ulr ::: $ORDERS_DATABASE_URL";
+
 WORKDIR /usr/src/app
 
 #Copy node modules  from deps 
